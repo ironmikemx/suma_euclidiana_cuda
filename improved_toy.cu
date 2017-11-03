@@ -14,10 +14,10 @@ using namespace thrust::placeholders;
 /****************************************************/
 struct PowerDifference {
 	__host__ __device__ float operator()(const float& a, const float& b) const { 
-        if ( a == 0.0f || b == 0.0f) {
+        if ( fmodf(a,100) == 0.0f || fmodf(b,100)== 0.0f) {
           return 0.0f;
         } else {
-          return pow(a - b, 2); 
+          return pow(fmodf(a,100) - fmodf(b,100), 2); 
         }
    }
 };
@@ -25,13 +25,35 @@ struct PowerDifference {
 
 struct countIfNoZeros {
         __host__ __device__ float operator()(const float& a, const float& b) const {
-        if ( a > 0.0f && b > 0.0f) {
+        if ( fmodf(a,100) > 0.0f && fmodf(b,100) > 0.0f) {
           return 1.0f;
         } else {
           return 0.0f;
         }
    }
 };
+
+struct copy_if_value {
+        __host__ __device__ float operator()(const float& a, const float& b) const {
+        if ( fmodf(a,100) > 0.0f) {
+          return b;
+        } else {
+          return 9999999999.0f;
+        }
+   }
+};
+
+
+// note: functor inherits from unary_function
+struct not_99 : public thrust::unary_function<float,float>
+{
+  __host__ __device__
+  bool operator()(float x) const
+  {
+    return x < 9999999999.0f;
+  }
+};
+
 
 
 /*******************/
@@ -79,8 +101,8 @@ int main()
 	/* SETTING UP THE PROBLEM */
 	/**************************/
   
-	const int N		= 20;			// --- Number of vector elements
-	const int Nvec	= 3;			// --- Number of vectors for each matrix
+	const int N_movies_orig		= 20;			// --- Number of vector elements
+	const int N_users_orig	= 3;			// --- Number of vectors for each matrix
 
 	// --- Random uniform integer distribution between 0 and 100
 	thrust::default_random_engine rng;
@@ -88,131 +110,132 @@ int main()
 
 	// --- Matrix allocation and initialization
 
-	thrust::device_vector<float> d_matrix1(Nvec * N);
-	thrust::device_vector<float> d_matrix2(Nvec * N);
+	thrust::device_vector<float> d_matrixA(N_users_orig * N_movies_orig);
+	thrust::device_vector<float> d_matrixB(N_users_orig * N_movies_orig);
 
-        d_matrix1[0]  =  0;
-        d_matrix1[1]  =  1;
-        d_matrix1[2]  =  2;
-        d_matrix1[3]  =  3;
-        d_matrix1[4]  =  5;
-        d_matrix1[5]  =  0;
-        d_matrix1[6]  =  0;
-        d_matrix1[7]  =  0;
-        d_matrix1[8]  =  0;
-        d_matrix1[9]  =  0;
-        d_matrix1[10]  =  0;
-        d_matrix1[11]  =  0;
-        d_matrix1[12]  =  0;
-        d_matrix1[13]  =  0;
-        d_matrix1[14]  =  0;
-        d_matrix1[15]  =  0;
-        d_matrix1[16]  =  0;
-        d_matrix1[17]  =  0;
-        d_matrix1[18]  =  0;
-        d_matrix1[19]  =  0;
-        d_matrix1[20]  =  0;
-        d_matrix1[21]  =  2;
-        d_matrix1[22]  =  2;
-        d_matrix1[23]  =  3;
-        d_matrix1[24]  =  0;
-        d_matrix1[25]  =  5;
-        d_matrix1[26]  =  0;
-        d_matrix1[27]  =  0;
-        d_matrix1[28]  =  0;
-        d_matrix1[29]  =  0;
-        d_matrix1[30]  =  0;
-        d_matrix1[31]  =  1;
-        d_matrix1[32]  =  0;
-        d_matrix1[33]  =  0;
-        d_matrix1[34]  =  0;
-        d_matrix1[35]  =  0;
-        d_matrix1[36]  =  0;
-        d_matrix1[37]  =  0;
-        d_matrix1[38]  =  0;
-        d_matrix1[39]  =  0;
-        d_matrix1[40]  =  5;
-        d_matrix1[41]  =  5;
-        d_matrix1[42]  =  5;
-        d_matrix1[43]  =  1;
-        d_matrix1[44]  =  0;
-        d_matrix1[45]  =  0;
-        d_matrix1[46]  =  0;
-        d_matrix1[47]  =  0;
-        d_matrix1[48]  =  0;
-        d_matrix1[49]  =  0;
-        d_matrix1[50]  =  0;
-        d_matrix1[51]  =  0;
-        d_matrix1[52]  =  0;
-        d_matrix1[53]  =  0;
-        d_matrix1[54]  =  0;
-        d_matrix1[55]  =  0;
-        d_matrix1[56]  =  0;
-        d_matrix1[57]  =  0;
-        d_matrix1[58]  =  0;
-        d_matrix1[59]  =  0;
+        d_matrixA[0]  =  1000000;
+        d_matrixA[1]  =  2000101;
+        d_matrixA[2]  =  3000202;
+        d_matrixA[3]  =  4000303;
+        d_matrixA[4]  =  5000405;
+        d_matrixA[5]  =  6000500;
+        d_matrixA[6]  =  7000600;
+        d_matrixA[7]  =  8000700;
+        d_matrixA[8]  =  9000800;
+        d_matrixA[9]  =  10000900;
+        d_matrixA[10]  =  11001000;
+        d_matrixA[11]  =  12001100;
+        d_matrixA[12]  =  13001200;
+        d_matrixA[13]  =  14001300;
+        d_matrixA[14]  =  15001400;
+        d_matrixA[15]  =  16001500;
+        d_matrixA[16]  =  17001600;
+        d_matrixA[17]  =  18001700;
+        d_matrixA[18]  =  19001800;
+        d_matrixA[19]  =  20001900;
+        d_matrixA[20]  =  21000000;
+        d_matrixA[21]  =  22000102;
+        d_matrixA[22]  =  23000202;
+        d_matrixA[23]  =  24000303;
+        d_matrixA[24]  =  25000400;
+        d_matrixA[25]  =  26000505;
+        d_matrixA[26]  =  27000600;
+        d_matrixA[27]  =  28000700;
+        d_matrixA[28]  =  29000800;
+        d_matrixA[29]  =  30000900;
+        d_matrixA[30]  =  31001001;
+        d_matrixA[31]  =  32001100;
+        d_matrixA[32]  =  33001200;
+        d_matrixA[33]  =  34001300;
+        d_matrixA[34]  =  35001400;
+        d_matrixA[35]  =  36001500;
+        d_matrixA[36]  =  37001600;
+        d_matrixA[37]  =  38001700;
+        d_matrixA[38]  =  39001800;
+        d_matrixA[39]  =  40001900;
+        d_matrixA[40]  =  41000005;
+        d_matrixA[41]  =  42000105;
+        d_matrixA[42]  =  43000205;
+        d_matrixA[43]  =  44000301;
+        d_matrixA[44]  =  45000400;
+        d_matrixA[45]  =  46000500;
+        d_matrixA[46]  =  47000600;
+        d_matrixA[47]  =  48000700;
+        d_matrixA[48]  =  49000800;
+        d_matrixA[49]  =  50000900;
+        d_matrixA[50]  =  51001000;
+        d_matrixA[51]  =  52001100;
+        d_matrixA[52]  =  53001200;
+        d_matrixA[53]  =  54001300;
+        d_matrixA[54]  =  55001400;
+        d_matrixA[55]  =  56001500;
+        d_matrixA[56]  =  57001600;
+        d_matrixA[57]  =  58001700;
+        d_matrixA[58]  =  59001800;
+        d_matrixA[59]  =  60001900;
 
 
-        d_matrix2[0]  =  0;
-        d_matrix2[1]  =  1;
-        d_matrix2[2]  =  2;
-        d_matrix2[3]  =  3;
-        d_matrix2[4]  =  5;
-        d_matrix2[5]  =  0;
-        d_matrix2[6]  =  0;
-        d_matrix2[7]  =  0;
-        d_matrix2[8]  =  0;
-        d_matrix2[9]  =  0;
-        d_matrix2[10]  =  0;
-        d_matrix2[11]  =  0;
-        d_matrix2[12]  =  0;
-        d_matrix2[13]  =  0;
-        d_matrix2[14]  =  0;
-        d_matrix2[15]  =  0;
-        d_matrix2[16]  =  0;
-        d_matrix2[17]  =  0;
-        d_matrix2[18]  =  0;
-        d_matrix2[19]  =  0;
-        d_matrix2[20]  =  0;
-        d_matrix2[21]  =  1;
-        d_matrix2[22]  =  2;
-        d_matrix2[23]  =  3;
-        d_matrix2[24]  =  5;
-        d_matrix2[25]  =  0;
-        d_matrix2[26]  =  0;
-        d_matrix2[27]  =  0;
-        d_matrix2[28]  =  0;
-        d_matrix2[29]  =  0;
-        d_matrix2[30]  =  0;
-        d_matrix2[31]  =  0;
-        d_matrix2[32]  =  0;
-        d_matrix2[33]  =  0;
-        d_matrix2[34]  =  0;
-        d_matrix2[35]  =  0;
-        d_matrix2[36]  =  0;
-        d_matrix2[37]  =  0;
-        d_matrix2[38]  =  0;
-        d_matrix2[39]  =  0;
-        d_matrix2[40]  =  0;
-        d_matrix2[41]  =  1;
-        d_matrix2[42]  =  2;
-        d_matrix2[43]  =  3;
-        d_matrix2[44]  =  5;
-        d_matrix2[45]  =  0;
-        d_matrix2[46]  =  0;
-        d_matrix2[47]  =  0;
-        d_matrix2[48]  =  0;
-        d_matrix2[49]  =  0;
-        d_matrix2[50]  =  0;
-        d_matrix2[51]  =  0;
-        d_matrix2[52]  =  0;
-        d_matrix2[53]  =  0;
-        d_matrix2[54]  =  0;
-        d_matrix2[55]  =  0;
-        d_matrix2[56]  =  0;
-        d_matrix2[57]  =  0;
-        d_matrix2[58]  =  0;
-        d_matrix2[59]  =  0;
+        d_matrixB[0]  =  1000000;
+        d_matrixB[1]  =  2000101;
+        d_matrixB[2]  =  3000202;
+        d_matrixB[3]  =  4000303;
+        d_matrixB[4]  =  5000405;
+        d_matrixB[5]  =  6000500;
+        d_matrixB[6]  =  7000600;
+        d_matrixB[7]  =  8000700;
+        d_matrixB[8]  =  9000800;
+        d_matrixB[9]  =  10000900;
+        d_matrixB[10]  =  11001000;
+        d_matrixB[11]  =  12001100;
+        d_matrixB[12]  =  13001200;
+        d_matrixB[13]  =  14001300;
+        d_matrixB[14]  =  15001400;
+        d_matrixB[15]  =  16001500;
+        d_matrixB[16]  =  17001600;
+        d_matrixB[17]  =  18001700;
+        d_matrixB[18]  =  19001800;
+        d_matrixB[19]  =  20001900;
+        d_matrixB[20]  =  21000000;
+        d_matrixB[21]  =  22000101;
+        d_matrixB[22]  =  23000202;
+        d_matrixB[23]  =  24000303;
+        d_matrixB[24]  =  25000405;
+        d_matrixB[25]  =  26000500;
+        d_matrixB[26]  =  27000600;
+        d_matrixB[27]  =  28000700;
+        d_matrixB[28]  =  29000800;
+        d_matrixB[29]  =  30000900;
+        d_matrixB[30]  =  31001000;
+        d_matrixB[31]  =  32001100;
+        d_matrixB[32]  =  33001200;
+        d_matrixB[33]  =  34001300;
+        d_matrixB[34]  =  35001400;
+        d_matrixB[35]  =  36001500;
+        d_matrixB[36]  =  37001600;
+        d_matrixB[37]  =  38001700;
+        d_matrixB[38]  =  39001800;
+        d_matrixB[39]  =  40001900;
+        d_matrixB[40]  =  41000000;
+        d_matrixB[41]  =  42000101;
+        d_matrixB[42]  =  43000202;
+        d_matrixB[43]  =  44000303;
+        d_matrixB[44]  =  45000405;
+        d_matrixB[45]  =  46000500;
+        d_matrixB[46]  =  47000600;
+        d_matrixB[47]  =  48000700;
+        d_matrixB[48]  =  49000800;
+        d_matrixB[49]  =  50000900;
+        d_matrixB[50]  =  51001000;
+        d_matrixB[51]  =  52001100;
+        d_matrixB[52]  =  53001200;
+        d_matrixB[53]  =  54001300;
+        d_matrixB[54]  =  55001400;
+        d_matrixB[55]  =  56001500;
+        d_matrixB[56]  =  57001600;
+        d_matrixB[57]  =  58001700;
+        d_matrixB[58]  =  59001800;
+        d_matrixB[59]  =  60001900;
+
 
 
 
@@ -221,80 +244,120 @@ int main()
 
 
 	printf("\n\nFirst matrix\n");
-	for(int i = 0; i < Nvec; i++) {
+	for(int i = 0; i < N_users_orig; i++) {
 		std::cout << " [ ";
-		for(int j = 0; j < N; j++)
-			std::cout << d_matrix1[i * N + j] << " ";
+		for(int j = 0; j < N_movies_orig; j++)
+			std::cout << d_matrixA[i * N_movies_orig + j] << " ";
 		std::cout << "]\n";
 	}
 
 	printf("\n\nSecond matrix\n");
-	for(int i = 0; i < Nvec; i++) {
+	for(int i = 0; i < N_users_orig; i++) {
 		std::cout << " [ ";
-		for(int j = 0; j < N; j++)
-			std::cout << d_matrix2[i * N + j] << " ";
+		for(int j = 0; j < N_movies_orig; j++)
+			std::cout << d_matrixB[i * N_movies_orig + j] << " ";
 		std::cout << "]\n";
 	}
 
 
         
-       
+      // Reducing matrixes
+
+      thrust::device_vector<float> temp1(N_movies_orig*N_users_orig);
+      thrust::device_vector<float> temp2(N_movies_orig*N_users_orig);
+      thrust::device_vector<float> temp1sorted(N_movies_orig*N_users_orig);
+      thrust::device_vector<float> temp2sorted(N_movies_orig*N_users_orig);
+      thrust::transform(d_matrixB.begin(), d_matrixB.end(), d_matrixA.begin(), temp1.begin(), copy_if_value());
+      thrust::transform(d_matrixB.begin(), d_matrixB.end(), d_matrixB.begin(), temp2.begin(), copy_if_value());
+
+
+      thrust::sort_by_key(temp1.begin(), temp1.end(), temp1sorted.begin());
+      thrust::sort_by_key(temp2.begin(), temp2.end(), temp2sorted.begin());
+
+      int N = thrust::count_if( temp1.begin(), temp1.end(), not_99());
+      int N_users = N_users_orig;
+      int N_movies = N / N_users;
+
+
+      std::cout << "MOVIES ="<< N << "]\n";
+
+      thrust::device_vector<float> d_matrix1(N);
+      thrust::device_vector<float> d_matrix2(N);
+      
+      thrust::copy_if(temp1sorted.begin(), temp1sorted.end() + N, d_matrix1.begin(), not_99());
+      thrust::copy_if(temp2sorted.begin(), temp2sorted.end() + N, d_matrix2.begin(), not_99());
 
 
 
-	/****************************************************************************/
-	/* CALCULATING THE EUCLIDEAN DISTANCES BETWEEN THE ROWS OF THE TWO MATRICES */
-	/****************************************************************************/
-	// --- Creating the indices for the reduction by key
-	thrust::device_vector<int> d_sequence(Nvec);
-	thrust::device_vector<int> d_indices(Nvec * N);
-	thrust::device_vector<int> d_counts(Nvec, N);
-	thrust::sequence(d_sequence.begin(), d_sequence.begin() + Nvec);
+
+
+ printf("\n\nFirst matrix\n");
+        for(int i = 0; i < N_users; i++) {
+                std::cout << " [ ";
+                for(int j = 0; j < N_movies; j++)
+                        std::cout << d_matrix1[i * N_movies + j] << " ";
+                std::cout << "]\n";
+        }
+
+        printf("\n\nSecond matrix\n");
+        for(int i = 0; i < N_users; i++) {
+                std::cout << " [ ";
+                for(int j = 0; j < N_movies; j++)
+                        std::cout << d_matrix2[i * N_movies + j] << " ";
+                std::cout << "]\n";
+        }
+
+
+
+
+	thrust::device_vector<int> d_sequence(N_users);
+	thrust::device_vector<int> d_indices(N_users * N_movies);
+	thrust::device_vector<int> d_counts(N_users, N_movies);
+	thrust::sequence(d_sequence.begin(), d_sequence.begin() + N_users);
 	expand(d_counts.begin(), d_counts.end(), d_sequence.begin(), d_indices.begin());
 
 	printf("\n\nIndex matrix\n");
-	for(int i = 0; i < Nvec; i++) {
+	for(int i = 0; i < N_users; i++) {
 		std::cout << " [ ";
-		for(int j = 0; j < N; j++)
-			std::cout << d_indices[i * N + j] << " ";
+		for(int j = 0; j < N_movies; j++)
+			std::cout << d_indices[i * N_movies + j] << " ";
 		std::cout << "]\n";
 	}
 
-        thrust::device_vector<float> d_devnull(Nvec);
+        thrust::device_vector<float> d_devnull(N_users);
 
-	thrust::device_vector<float> d_squared_differences(Nvec * N);
+	thrust::device_vector<float> d_squared_differences(N_users * N_movies);
 
 	thrust::transform(d_matrix1.begin(), d_matrix1.end(), d_matrix2.begin(), d_squared_differences.begin(), PowerDifference());
 
-	thrust::device_vector<float> d_norms(Nvec);
+	thrust::device_vector<float> d_norms(N_users);
 	thrust::reduce_by_key(d_indices.begin(), d_indices.end(), d_squared_differences.begin(), d_devnull.begin(), d_norms.begin());
 	
-        thrust::device_vector<float> d_cuenta(Nvec * N);
+        thrust::device_vector<float> d_cuenta(N_users * N_movies);
         thrust::transform(d_matrix1.begin(), d_matrix1.end(), d_matrix2.begin(), d_cuenta.begin(), countIfNoZeros());
 
-        thrust::device_vector<float> d_dividendo(Nvec);
+        thrust::device_vector<float> d_dividendo(N_users);
         thrust::reduce_by_key(d_indices.begin(), d_indices.end(), d_cuenta.begin(), d_devnull.begin(), d_dividendo.begin());
 
 
 
-       thrust::device_vector<float> d_distancias_euclidianas(Nvec);
+       thrust::device_vector<float> d_distancias_euclidianas(N_users);
        thrust::transform(d_norms.begin(), d_norms.end(), d_dividendo.begin(), d_distancias_euclidianas.begin(), thrust::divides<float>());
 
        printf("\n\nDistancia Euclidiana \n");
-        for(int i = 0; i < Nvec; i++) {
+        for(int i = 0; i < N_users; i++) {
                 //      std::cout << (d_norms[i]/d_dividendo[i]) << " ";
                 std::cout << d_norms[i] << "/" << d_dividendo[i] << "=" << d_distancias_euclidianas[i] << " \n";
         }
 
 
-       thrust::device_vector<int> user_index(Nvec);
+       thrust::device_vector<int> user_index(N_users);
        thrust::sequence(user_index.begin(), user_index.end(), 0, 1);
        
 
        thrust::sort_by_key(user_index.begin(), user_index.end(), d_distancias_euclidianas.begin());
 
        std::cout << "La menor distancias es :" << d_distancias_euclidianas[1] << " del usuario " << user_index[1]<< " \n";
-       
        
 
 

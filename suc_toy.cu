@@ -236,6 +236,12 @@ int main()
 		std::cout << "]\n";
 	}
 
+
+        
+       
+
+
+
 	/****************************************************************************/
 	/* CALCULATING THE EUCLIDEAN DISTANCES BETWEEN THE ROWS OF THE TWO MATRICES */
 	/****************************************************************************/
@@ -288,7 +294,8 @@ int main()
        thrust::sort_by_key(user_index.begin(), user_index.end(), d_distancias_euclidianas.begin());
 
        std::cout << "La menor distancias es :" << d_distancias_euclidianas[1] << " del usuario " << user_index[1]<< " \n";
-
+       
+       
 
 
 	return 0; 

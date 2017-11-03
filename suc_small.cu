@@ -4,6 +4,7 @@
 #include <thrust/random.h>
 #include <thrust/gather.h>
 #include <thrust/extrema.h>
+#include <thrust/sort.h>
 #include <stdio.h>
 
 using namespace thrust::placeholders;
@@ -336,15 +337,15 @@ d_matrix1[7920]  =  0;   d_matrix1[7921]  =  0;   d_matrix1[7922]  =  5;   d_mat
 		std::cout << "]\n";
 	}
 
-        thrust::device_vector<float> d_devnull(Nvec);
+       thrust::device_vector<float> d_devnull(Nvec);
 
-	thrust::device_vector<float> d_squared_differences(Nvec * N);
+        thrust::device_vector<float> d_squared_differences(Nvec * N);
 
-	thrust::transform(d_matrix1.begin(), d_matrix1.end(), d_matrix2.begin(), d_squared_differences.begin(), PowerDifference());
+        thrust::transform(d_matrix1.begin(), d_matrix1.end(), d_matrix2.begin(), d_squared_differences.begin(), PowerDifference());
 
-	thrust::device_vector<float> d_norms(Nvec);
-	thrust::reduce_by_key(d_indices.begin(), d_indices.end(), d_squared_differences.begin(), d_devnull.begin(), d_norms.begin());
-	
+        thrust::device_vector<float> d_norms(Nvec);
+        thrust::reduce_by_key(d_indices.begin(), d_indices.end(), d_squared_differences.begin(), d_devnull.begin(), d_norms.begin());
+
         thrust::device_vector<float> d_cuenta(Nvec * N);
         thrust::transform(d_matrix1.begin(), d_matrix1.end(), d_matrix2.begin(), d_cuenta.begin(), countIfNoZeros());
 
@@ -353,12 +354,24 @@ d_matrix1[7920]  =  0;   d_matrix1[7921]  =  0;   d_matrix1[7922]  =  5;   d_mat
 
 
 
+       thrust::device_vector<float> d_distancias_euclidianas(Nvec);
+       thrust::transform(d_norms.begin(), d_norms.end(), d_dividendo.begin(), d_distancias_euclidianas.begin(), thrust::divides<float>());
 
-	printf("\n\nDistancia Euclidiana \n");
-	for(int i = 0; i < Nvec; i++) {
-		//	std::cout << (d_norms[i]/d_dividendo[i]) << " ";
-		std::cout << d_norms[i] << "/" << d_dividendo[i] << "=" << (d_norms[i]/d_dividendo[i]) << " ";
-	}
+       printf("\n\nDistancia Euclidiana \n");
+        for(int i = 0; i < Nvec; i++) {
+                //      std::cout << (d_norms[i]/d_dividendo[i]) << " ";
+                std::cout << d_norms[i] << "/" << d_dividendo[i] << "=" << d_distancias_euclidianas[i] << " \n";
+        }
+
+
+       thrust::device_vector<int> user_index(Nvec);
+       thrust::sequence(user_index.begin(), user_index.end(), 0, 1);
+
+
+       thrust::sort_by_key(user_index.begin(), user_index.end(), d_distancias_euclidianas.begin());
+
+       std::cout << "La menor distancias es :" << d_distancias_euclidianas[1] << " del usuario " << user_index[1]<< " \n";
+
 
 	return 0; 
 }

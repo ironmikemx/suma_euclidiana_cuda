@@ -243,19 +243,19 @@ int main()
 
 
 
-	printf("\n\nFirst matrix\n");
+	printf("\n\nFirst matrixA\n");
 	for(int i = 0; i < N_users_orig; i++) {
 		std::cout << " [ ";
 		for(int j = 0; j < N_movies_orig; j++)
-			std::cout << fmodf(d_matrixA[i * N_movies_orig + j],100) << " ";
+			std::cout << fmodf(d_matrixA[i * N_movies_orig + j],10000) << " ";
 		std::cout << "]\n";
 	}
 
-	printf("\n\nSecond matrix\n");
+	printf("\n\nSecond matrixB\n");
 	for(int i = 0; i < N_users_orig; i++) {
 		std::cout << " [ ";
 		for(int j = 0; j < N_movies_orig; j++)
-			std::cout << fmodf(d_matrixB[i * N_movies_orig + j],100) << " ";
+			std::cout << fmodf(d_matrixB[i * N_movies_orig + j],10000) << " ";
 		std::cout << "]\n";
 	}
 
@@ -284,9 +284,17 @@ int main()
       thrust::device_vector<float> d_matrix1(N);
       thrust::device_vector<float> d_matrix2(N);
       
-      thrust::copy_if(temp1sorted.begin(), temp1sorted.end(), d_matrix1.begin(), not_99());
-      thrust::copy_if(temp2sorted.begin(), temp2sorted.end(), d_matrix2.begin(), not_99());
+      thrust::copy_if(temp1.begin(), temp1.end(), d_matrix1.begin(), not_99());
+      thrust::copy_if(temp2.begin(), temp2.end(), d_matrix2.begin(), not_99());
 
+
+printf("\n\ntemp1 matrix\n");
+        for(int i = 0; i < N_users_orig; i++) {
+                std::cout << " [ ";
+                for(int j = 0; j < N_movies; j++)
+                        std::cout << temp1[i * N_movies_orig + j] << " ";
+                std::cout << "]\n";
+        }
 
 
 

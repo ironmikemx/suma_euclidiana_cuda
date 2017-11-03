@@ -13,44 +13,44 @@ using namespace thrust::placeholders;
 /* POWER DIFFERENCE FUNCTOR FOR EUCLIDEAN DISTANCES */
 /****************************************************/
 struct PowerDifference {
-	__host__ __device__ float operator()(const float& a, const float& b) const { 
-        if ( fmodf(a,100) == 0.0f || fmodf(b,100)== 0.0f) {
-          return 0.0f;
+	__host__ __device__ float operator()(const int& a, const int& b) const { 
+        if ( a%100 == 0 || b%100 == 0) {
+          return 0;
         } else {
-          return pow(fmodf(a,100) - fmodf(b,100), 2); 
+          return powf(a%100 - b%100, 2); 
         }
    }
 };
 
 
 struct countIfNoZeros {
-        __host__ __device__ float operator()(const float& a, const float& b) const {
+        __host__ __device__ int operator()(const float& a, const float& b) const {
         if ( fmodf(a,100) > 0.0f && fmodf(b,100) > 0.0f) {
-          return 1.0f;
+          return 1;
         } else {
-          return 0.0f;
+          return 0;
         }
    }
 };
 
-struct copy_if_value {
-        __host__ __device__ float operator()(const float& a, const float& b) const {
-        if ( fmodf(a,100) > 0.0f) {
+struct mark {
+        __host__ __device__ int operator()(const int& a, const int& b) const {
+        if ( a%100 > 0) {
           return b;
         } else {
-          return 9999999999.0f;
+          return 999999999;
         }
    }
 };
 
 
 // note: functor inherits from unary_function
-struct not_99 : public thrust::unary_function<float,float>
+struct not_99 : public thrust::unary_function<int,int>
 {
   __host__ __device__
-  bool operator()(float x) const
+  bool operator()(int x) const
   {
-    return x < 9999999999.0f;
+    return x < 999999999;
   }
 };
 
@@ -104,14 +104,11 @@ int main()
 	const int N_movies_orig		= 20;			// --- Number of vector elements
 	const int N_users_orig	= 3;			// --- Number of vectors for each matrix
 
-	// --- Random uniform integer distribution between 0 and 100
-	thrust::default_random_engine rng;
-	thrust::uniform_int_distribution<int> dist(0, 20);
 
 	// --- Matrix allocation and initialization
 
-	thrust::device_vector<float> d_matrixA(N_users_orig * N_movies_orig);
-	thrust::device_vector<float> d_matrixB(N_users_orig * N_movies_orig);
+	thrust::device_vector<int> d_matrixA(N_users_orig * N_movies_orig);
+	thrust::device_vector<int> d_matrixB(N_users_orig * N_movies_orig);
 
         d_matrixA[0]  =  1000000;
         d_matrixA[1]  =  2000101;
@@ -243,19 +240,19 @@ int main()
 
 
 
-	printf("\n\nFirst matrixA\n");
+	printf("\n\nmatrixA\n");
 	for(int i = 0; i < N_users_orig; i++) {
 		std::cout << " [ ";
 		for(int j = 0; j < N_movies_orig; j++)
-			std::cout << fmodf(d_matrixA[i * N_movies_orig + j],10000) << " ";
+			std::cout << d_matrixA[i * N_movies_orig + j]%100 << " ";
 		std::cout << "]\n";
 	}
 
-	printf("\n\nSecond matrixB\n");
+	printf("\n\nmatrixB\n");
 	for(int i = 0; i < N_users_orig; i++) {
 		std::cout << " [ ";
 		for(int j = 0; j < N_movies_orig; j++)
-			std::cout << fmodf(d_matrixB[i * N_movies_orig + j],10000) << " ";
+			std::cout << (d_matrixB[i * N_movies_orig + j]%100) << " ";
 		std::cout << "]\n";
 	}
 
@@ -263,16 +260,16 @@ int main()
         
       // Reducing matrixes
 
-      thrust::device_vector<float> temp1(N_movies_orig*N_users_orig);
-      thrust::device_vector<float> temp2(N_movies_orig*N_users_orig);
-      thrust::device_vector<float> temp1sorted(N_movies_orig*N_users_orig);
-      thrust::device_vector<float> temp2sorted(N_movies_orig*N_users_orig);
-      thrust::transform(d_matrixB.begin(), d_matrixB.end(), d_matrixA.begin(), temp1.begin(), copy_if_value());
-      thrust::transform(d_matrixB.begin(), d_matrixB.end(), d_matrixB.begin(), temp2.begin(), copy_if_value());
+      thrust::device_vector<int> temp1(N_movies_orig*N_users_orig);
+      thrust::device_vector<int> temp2(N_movies_orig*N_users_orig);
+      //thrust::device_vector<int> temp1sorted(N_movies_orig*N_users_orig);
+      //thrust::device_vector<int> temp2sorted(N_movies_orig*N_users_orig);
+      thrust::transform(d_matrixA.begin(), d_matrixA.end(), d_matrixB.begin(), temp1.begin(), mark());
+      thrust::transform(d_matrixB.begin(), d_matrixB.end(), d_matrixB.begin(), temp2.begin(), mark());
 
 
-      thrust::sort_by_key(temp1.begin(), temp1.end(), temp1sorted.begin());
-      thrust::sort_by_key(temp2.begin(), temp2.end(), temp2sorted.begin());
+      //thrust::sort_by_key(temp1.begin(), temp1.end(), temp1sorted.begin());
+      //thrust::sort_by_key(temp2.begin(), temp2.end(), temp2sorted.begin());
 
       int N = thrust::count_if( temp1.begin(), temp1.end(), not_99());
       int N_users = N_users_orig;
@@ -281,18 +278,26 @@ int main()
 
       std::cout << "MOVIES ="<< N << "]\n";
 
-      thrust::device_vector<float> d_matrix1(N);
-      thrust::device_vector<float> d_matrix2(N);
+      thrust::device_vector<int> d_matrix1(N);
+      thrust::device_vector<int> d_matrix2(N);
       
       thrust::copy_if(temp1.begin(), temp1.end(), d_matrix1.begin(), not_99());
       thrust::copy_if(temp2.begin(), temp2.end(), d_matrix2.begin(), not_99());
 
 
-printf("\n\ntemp1 matrix\n");
+        printf("\n\ntemp1\n");
         for(int i = 0; i < N_users_orig; i++) {
                 std::cout << " [ ";
                 for(int j = 0; j < N_movies; j++)
                         std::cout << temp1[i * N_movies_orig + j] << " ";
+                std::cout << "]\n";
+        }
+
+        printf("\n\ntemp2\n");
+        for(int i = 0; i < N_users_orig; i++) {
+                std::cout << " [ ";
+                for(int j = 0; j < N_movies; j++)
+                        std::cout << temp2[i * N_movies_orig + j] << " ";
                 std::cout << "]\n";
         }
 
@@ -341,7 +346,7 @@ printf("\n\ntemp1 matrix\n");
 	thrust::device_vector<float> d_norms(N_users);
 	thrust::reduce_by_key(d_indices.begin(), d_indices.end(), d_squared_differences.begin(), d_devnull.begin(), d_norms.begin());
 	
-        thrust::device_vector<float> d_cuenta(N_users * N_movies);
+        thrust::device_vector<int> d_cuenta(N_users * N_movies);
         thrust::transform(d_matrix1.begin(), d_matrix1.end(), d_matrix2.begin(), d_cuenta.begin(), countIfNoZeros());
 
         thrust::device_vector<float> d_dividendo(N_users);

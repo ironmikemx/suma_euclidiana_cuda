@@ -24,8 +24,8 @@ struct PowerDifference {
 
 
 struct countIfNoZeros {
-        __host__ __device__ int operator()(const float& a, const float& b) const {
-        if ( fmodf(a,100) > 0.0f && fmodf(b,100) > 0.0f) {
+        __host__ __device__ int operator()(const int& a, const int& b) const {
+        if ( a%100 > 0 && b%100 > 0) {
           return 1;
         } else {
           return 0;
@@ -35,8 +35,8 @@ struct countIfNoZeros {
 
 struct mark {
         __host__ __device__ int operator()(const int& a, const int& b) const {
-        if ( a%100 > 0) {
-          return b;
+        if ( b%100 > 0) {
+          return a;
         } else {
           return 999999999;
         }
@@ -288,35 +288,35 @@ int main()
         printf("\n\ntemp1\n");
         for(int i = 0; i < N_users_orig; i++) {
                 std::cout << " [ ";
-                for(int j = 0; j < N_movies; j++)
-                        std::cout << temp1[i * N_movies_orig + j] << " ";
+                for(int j = 0; j < N_movies_orig; j++)
+                        std::cout << temp1[i * N_movies_orig + j]%100 << " ";
                 std::cout << "]\n";
         }
 
         printf("\n\ntemp2\n");
         for(int i = 0; i < N_users_orig; i++) {
                 std::cout << " [ ";
-                for(int j = 0; j < N_movies; j++)
-                        std::cout << temp2[i * N_movies_orig + j] << " ";
+                for(int j = 0; j < N_movies_orig; j++)
+                        std::cout << temp2[i * N_movies_orig + j]%100 << " ";
                 std::cout << "]\n";
         }
 
 
 
 
- printf("\n\nFirst matrix\n");
+ printf("\n\nd_matrix1\n");
         for(int i = 0; i < N_users; i++) {
                 std::cout << " [ ";
                 for(int j = 0; j < N_movies; j++)
-                        std::cout << d_matrix1[i * N_movies + j] << " ";
+                        std::cout << d_matrix1[i * N_movies + j]%100 << " ";
                 std::cout << "]\n";
         }
 
-        printf("\n\nSecond matrix\n");
+        printf("\n\nd_matrix2\n");
         for(int i = 0; i < N_users; i++) {
                 std::cout << " [ ";
                 for(int j = 0; j < N_movies; j++)
-                        std::cout << d_matrix2[i * N_movies + j] << " ";
+                        std::cout << d_matrix2[i * N_movies + j]%100 << " ";
                 std::cout << "]\n";
         }
 

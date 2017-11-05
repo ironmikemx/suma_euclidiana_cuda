@@ -6,8 +6,8 @@
 #include <thrust/extrema.h>
 #include <thrust/sort.h>
 #include <stdio.h>
-
 using namespace thrust::placeholders;
+#include "data.cuh"
 
 /****************************************************/
 /* POWER DIFFERENCE FUNCTOR FOR EUCLIDEAN DISTANCES */
@@ -19,6 +19,12 @@ struct PowerDifference {
         } else {
           return powf(a%100 - b%100, 2); 
         }
+   }
+};
+
+struct division_especial {
+        __host__ __device__ float operator()(const int& a, const int& b) const {
+       return (a+(0.00001f-b*0.000001f))/b;
    }
 };
 
@@ -100,145 +106,20 @@ int main()
 	/**************************/
 	/* SETTING UP THE PROBLEM */
 	/**************************/
-  
-	const int N_movies_orig		= 20;			// --- Number of vector elements
-	const int N_users_orig	= 3;			// --- Number of vectors for each matrix
+
+        int usuario_id =80;  
+	const int N_movies_orig		= 80;			// --- Number of vector elements
+	const int N_users_orig	= 100;			// --- Number of vectors for each matrix
 
 
 	// --- Matrix allocation and initialization
 
-	thrust::device_vector<int> d_matrixA(N_users_orig * N_movies_orig);
-	thrust::device_vector<int> d_matrixB(N_users_orig * N_movies_orig);
-
-        d_matrixA[0]  =  1000000;
-        d_matrixA[1]  =  2000101;
-        d_matrixA[2]  =  3000202;
-        d_matrixA[3]  =  4000303;
-        d_matrixA[4]  =  5000405;
-        d_matrixA[5]  =  6000500;
-        d_matrixA[6]  =  7000600;
-        d_matrixA[7]  =  8000700;
-        d_matrixA[8]  =  9000800;
-        d_matrixA[9]  =  10000900;
-        d_matrixA[10]  =  11001000;
-        d_matrixA[11]  =  12001100;
-        d_matrixA[12]  =  13001200;
-        d_matrixA[13]  =  14001300;
-        d_matrixA[14]  =  15001400;
-        d_matrixA[15]  =  16001500;
-        d_matrixA[16]  =  17001600;
-        d_matrixA[17]  =  18001700;
-        d_matrixA[18]  =  19001800;
-        d_matrixA[19]  =  20001900;
-        d_matrixA[20]  =  21000000;
-        d_matrixA[21]  =  22000102;
-        d_matrixA[22]  =  23000202;
-        d_matrixA[23]  =  24000303;
-        d_matrixA[24]  =  25000400;
-        d_matrixA[25]  =  26000505;
-        d_matrixA[26]  =  27000600;
-        d_matrixA[27]  =  28000700;
-        d_matrixA[28]  =  29000800;
-        d_matrixA[29]  =  30000900;
-        d_matrixA[30]  =  31001001;
-        d_matrixA[31]  =  32001100;
-        d_matrixA[32]  =  33001200;
-        d_matrixA[33]  =  34001300;
-        d_matrixA[34]  =  35001400;
-        d_matrixA[35]  =  36001500;
-        d_matrixA[36]  =  37001600;
-        d_matrixA[37]  =  38001700;
-        d_matrixA[38]  =  39001800;
-        d_matrixA[39]  =  40001900;
-        d_matrixA[40]  =  41000005;
-        d_matrixA[41]  =  42000105;
-        d_matrixA[42]  =  43000205;
-        d_matrixA[43]  =  44000301;
-        d_matrixA[44]  =  45000400;
-        d_matrixA[45]  =  46000500;
-        d_matrixA[46]  =  47000600;
-        d_matrixA[47]  =  48000700;
-        d_matrixA[48]  =  49000800;
-        d_matrixA[49]  =  50000900;
-        d_matrixA[50]  =  51001000;
-        d_matrixA[51]  =  52001100;
-        d_matrixA[52]  =  53001200;
-        d_matrixA[53]  =  54001300;
-        d_matrixA[54]  =  55001400;
-        d_matrixA[55]  =  56001500;
-        d_matrixA[56]  =  57001600;
-        d_matrixA[57]  =  58001700;
-        d_matrixA[58]  =  59001800;
-        d_matrixA[59]  =  60001900;
+//	thrust::device_vector<int> d_matrixA(N_users_orig * N_movies_orig);
+//	thrust::device_vector<int> d_matrixB(N_users_orig * N_movies_orig);
 
 
-        d_matrixB[0]  =  1000000;
-        d_matrixB[1]  =  2000101;
-        d_matrixB[2]  =  3000202;
-        d_matrixB[3]  =  4000303;
-        d_matrixB[4]  =  5000405;
-        d_matrixB[5]  =  6000500;
-        d_matrixB[6]  =  7000600;
-        d_matrixB[7]  =  8000700;
-        d_matrixB[8]  =  9000800;
-        d_matrixB[9]  =  10000900;
-        d_matrixB[10]  =  11001000;
-        d_matrixB[11]  =  12001100;
-        d_matrixB[12]  =  13001200;
-        d_matrixB[13]  =  14001300;
-        d_matrixB[14]  =  15001400;
-        d_matrixB[15]  =  16001500;
-        d_matrixB[16]  =  17001600;
-        d_matrixB[17]  =  18001700;
-        d_matrixB[18]  =  19001800;
-        d_matrixB[19]  =  20001900;
-        d_matrixB[20]  =  21000000;
-        d_matrixB[21]  =  22000101;
-        d_matrixB[22]  =  23000202;
-        d_matrixB[23]  =  24000303;
-        d_matrixB[24]  =  25000405;
-        d_matrixB[25]  =  26000500;
-        d_matrixB[26]  =  27000600;
-        d_matrixB[27]  =  28000700;
-        d_matrixB[28]  =  29000800;
-        d_matrixB[29]  =  30000900;
-        d_matrixB[30]  =  31001000;
-        d_matrixB[31]  =  32001100;
-        d_matrixB[32]  =  33001200;
-        d_matrixB[33]  =  34001300;
-        d_matrixB[34]  =  35001400;
-        d_matrixB[35]  =  36001500;
-        d_matrixB[36]  =  37001600;
-        d_matrixB[37]  =  38001700;
-        d_matrixB[38]  =  39001800;
-        d_matrixB[39]  =  40001900;
-        d_matrixB[40]  =  41000000;
-        d_matrixB[41]  =  42000101;
-        d_matrixB[42]  =  43000202;
-        d_matrixB[43]  =  44000303;
-        d_matrixB[44]  =  45000405;
-        d_matrixB[45]  =  46000500;
-        d_matrixB[46]  =  47000600;
-        d_matrixB[47]  =  48000700;
-        d_matrixB[48]  =  49000800;
-        d_matrixB[49]  =  50000900;
-        d_matrixB[50]  =  51001000;
-        d_matrixB[51]  =  52001100;
-        d_matrixB[52]  =  53001200;
-        d_matrixB[53]  =  54001300;
-        d_matrixB[54]  =  55001400;
-        d_matrixB[55]  =  56001500;
-        d_matrixB[56]  =  57001600;
-        d_matrixB[57]  =  58001700;
-        d_matrixB[58]  =  59001800;
-        d_matrixB[59]  =  60001900;
-
-
-
-
-        
-
-
+        d_matrixA = load_data_all_users2(N_users_orig,N_movies_orig);
+        d_matrixB = load_data_single_user2(N_users_orig,N_movies_orig, usuario_id);
 
 	printf("\n\nmatrixA\n");
 	for(int i = 0; i < N_users_orig; i++) {
@@ -355,12 +236,14 @@ int main()
 
 
        thrust::device_vector<float> d_distancias_euclidianas(N_users);
-       thrust::transform(d_norms.begin(), d_norms.end(), d_dividendo.begin(), d_distancias_euclidianas.begin(), thrust::divides<float>());
+       //thrust::transform(d_norms.begin(), d_norms.end(), d_dividendo.begin(), d_distancias_euclidianas.begin(), thrust::divides<float>());
+
+       thrust::transform(d_norms.begin(), d_norms.end(), d_dividendo.begin(), d_distancias_euclidianas.begin(), division_especial());
 
        printf("\n\nDistancia Euclidiana \n");
         for(int i = 0; i < N_users; i++) {
                 //      std::cout << (d_norms[i]/d_dividendo[i]) << " ";
-                std::cout << d_norms[i] << "/" << d_dividendo[i] << "=" << d_distancias_euclidianas[i] << " \n";
+                std::cout << "usuario: " << i << " " << d_norms[i] << "/" << d_dividendo[i] << "=" << d_distancias_euclidianas[i] << " \n";
         }
 
 
@@ -368,9 +251,20 @@ int main()
        thrust::sequence(user_index.begin(), user_index.end(), 0, 1);
        
 
-       thrust::sort_by_key(user_index.begin(), user_index.end(), d_distancias_euclidianas.begin());
+       thrust::sort_by_key(d_distancias_euclidianas.begin(), d_distancias_euclidianas.end(), user_index.begin());
 
-       std::cout << "La menor distancias es :" << d_distancias_euclidianas[1] << " del usuario " << user_index[1]<< " \n";
+
+       printf("\n\nDistancias Ordenadas \n");
+       for(int i = 0; i < N_users; i++) {
+         std::cout << "usuario: " << user_index[i] <<  "=" << d_distancias_euclidianas[i] << " \n";
+       }
+
+
+       int answer = 0;
+       if (usuario_id == user_index[answer]) {
+         answer++;
+       }       
+       std::cout << "La menor distancias es :" << d_distancias_euclidianas[answer] << " del usuario " << user_index[answer]<< " \n";
        
 
 

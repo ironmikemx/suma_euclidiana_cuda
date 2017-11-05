@@ -114,12 +114,12 @@ int main()
 
 	// --- Matrix allocation and initialization
 
-	thrust::device_vector<int> d_matrixA(N_users_orig * N_movies_orig);
-	thrust::device_vector<int> d_matrixB(N_users_orig * N_movies_orig);
+//	thrust::device_vector<int> d_matrixA(N_users_orig * N_movies_orig);
+//	thrust::device_vector<int> d_matrixB(N_users_orig * N_movies_orig);
 
 
-        load_data_all_users(&matrixA);
-        load_data_single_user(&matrixB, usuario_id);
+        d_matrixA = load_data_all_users2(N_users_orig,N_movies_orig);
+        d_matrixB = load_data_single_user2(N_users_orig,N_movies_orig, usuario_id);
 
 	printf("\n\nmatrixA\n");
 	for(int i = 0; i < N_users_orig; i++) {

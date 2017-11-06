@@ -1,7 +1,17 @@
 #include <thrust/device_vector.h>
 
-
-void load(thrust::device_vector<int> & vec, const int u, const int m) {
+/*
+ * Function:  load
+ * --------------------
+ * copies a subset u * m of data into output vector
+ *
+ *  output_vector: destination output vector
+ *  u: number of users to copy
+ *  m: number of movies to copy
+ *
+ *  returns: Nothing
+ */
+void load(thrust::device_vector<int> & output_vector, const int u, const int m) {
 thrust::device_vector<int> data(80);
 
 /* user 0*/     data[0] = 5;    data[1] = 3;    data[2] = 4;    data[3] = 3;    data[4] = 3;    data[5] = 5;    data[6] = 4;    data[7] = 1;
@@ -19,13 +29,25 @@ thrust::device_vector<int> data(80);
   int num_of_movies = 8;
 
   for(int i = 0; i < u; i++) {
-    thrust::copy(data.begin()+(i*num_of_movies), data.begin() + ((i*num_of_movies) + m), vec.begin()+(i*m));
+    thrust::copy(data.begin()+(i*num_of_movies), data.begin() + ((i*num_of_movies) + m), output_vector.begin()+(i*m));
   }
   return;
 
 }
 
-void load(thrust::device_vector<int> & vec, const int u, const int m, const int user_id) {
+/*
+ * Function:  load
+ * --------------------
+ * generates dataset of size u * m with the ratings of the client
+ *
+ *  output_vector: destination output vector
+ *  u: number of users to copy
+ *  m: number of movies to copy
+ *  client_id: user_id of client
+ *
+ *  returns: Nothing
+ */
+void load(thrust::device_vector<int> & output_vector, const int u, const int m, const int user_id) {
 thrust::device_vector<int> data(80);
 
 /* user 0*/     data[0] = 5;    data[1] = 3;    data[2] = 4;    data[3] = 3;    data[4] = 3;    data[5] = 5;    data[6] = 4;    data[7] = 1;
@@ -43,7 +65,7 @@ thrust::device_vector<int> data(80);
   int num_of_movies = 8;
 
   for(int i = 0; i < u; i++) {
-    thrust::copy(data.begin()+(user_id*num_of_movies), data.begin() + ((user_id*num_of_movies) + m), vec.begin()+(i*m));
+    thrust::copy(data.begin()+(user_id*num_of_movies), data.begin() + ((user_id*num_of_movies) + m), output_vector.begin()+(i*m));
   }
   return;
 

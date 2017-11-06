@@ -9,60 +9,358 @@
 #include "data.cuh"
 using namespace thrust::placeholders;
 
+#define MASK 99
+
 
 /*
+ * Operator:  power_difference 
+ * --------------------
+ * computes the square power difference of two numbers using:
+ *    pow(a - b, 2) only if both numbers are different to 0.
+ *    This is a special power_difference as we only want to
+ *    compute when both elements in our vector have a value.
+ *    Meaning only when two users have seen the movie for
+ *    our recommender.
+ *
+ *  a: first number to compute the power difference
+ *  b: second number to compute the power difference
+ *
+ *  returns: 0 when one of the input values is 0
+ *           power difference of the two values in any other case
+ */
+struct power_difference {
+    __host__ __device__ float operator()(const int& a, const int& b) const {
+        if ( a % 100 == 0 || b % 100 == 0) {
+            return 0;
+        } else {
+            return powf(a % 100 - b % 100, 2);
+        }
+    }
+};
 
-void load(thrust::device_vector<int> & data, thrust::device_vector<int> & vec, const int u, const int m) {
-  thrust::copy(data.begin(), data.begin() + (u*m), vec.begin());
-  return;
+/*
+ * Operator:  weight_division
+ * --------------------
+ * computes the division of two numbers a and b using the fomula:
+ *    (a + (0.00001 - 0.000001 * b)) / b
+ *    This is a special divison used to rank matches. With these
+ *    even if two division would be the same, we favor a lowe value
+ *    by the weight of the dividend
+ *    Example
+ *       Normal divison         Weighted division
+ *     a    b    result        a    b    result
+ *    ---  ---  --------      ---  ---  --------
+ *     1    2      0.5         1    2   0.5000040
+ *     2    4      0.5         2    4   0.5000015
+ *
+ *    This way if the quotients are sorted, we favor values with larger
+ *    number of matches (b).
+ *
+ *  a: dividend
+ *  b: divided
+ *
+ *  returns: Weighted quotient of two numbers
+ */
+struct weight_division {
+    __host__ __device__ float operator()(const int& a, const int& b) const {
+        return (a + (0.00001f - b * 0.000001f)) / b;
+    }
+};
+
+
+/*
+ * Operator:  one_if_not_zeros
+ * --------------------
+ * this operator return 1 when both inputs are different to 0
+ *
+ *  a: number
+ *  b: number
+ *
+ *  returns: 1 when the two input values are different to 0
+ *           0 otherwise
+ */
+struct one_if_not_zeros {
+    __host__ __device__ int operator()(const int& a, const int& b) const {
+        if ( a % 100 > 0 && b % 100 > 0) {
+            return 1;
+        } else {
+            return 0;
+        }
+    }
+};
+
+/*
+ * Operator:  mask_if_zero
+ * --------------------
+ * this operator returns the first value received if the second
+ *    number is not zero. Otherwise return 999999999
+ *
+ *  a: first number
+ *  b: second number
+ *
+ *  returns: a when b > 0
+ *           MASK otherwise
+ */
+struct mask_if_zero {
+    __host__ __device__ int operator()(const int& a, const int& b) const {
+        if ( b%100 > 0) {
+            return a;
+        } else {
+            return MASK;
+        }
+    }
+};
+
+
+/*
+ * Operator:  is_less_than_mask
+ * --------------------
+ * Unary operator. Returns if the input value is less than mask
+ *
+ *  n: number
+ *
+ *  returns: TRUE when n < MASK
+ *           FALSE otherwise
+ */
+struct is_less_than_mask : public thrust::unary_function<int, int> {
+    __host__ __device__ bool operator()(int n) const {
+        return n < MASK;
+    }
+};
+
+
+
+/*
+ * Iterator:  make_matrix_index
+ * --------------------
+ * creates an iterator that is a one dimension representation of a two
+ *    dimentional matrix. Where all rows have the same value. 
+ *    Example: In a 4 x 3 the content will be:
+ *    (1, 1, 1, 1
+ *     2, 2, 2, 2
+ *     3, 3, 3, 3)
+ *
+ *  first1: Beginning of fist range
+ *  last1: End of first range
+ *  fist2: Beginning of the second range
+ *  output: where to store the output
+ *
+ *  returns: An iterator with an indexed row matrix 
+ */
+template <typename InputIterator1, typename InputIterator2, typename OutputIterator>
+   OutputIterator make_matrix_index(InputIterator1 first1, InputIterator1 last1,
+                      InputIterator2 first2, OutputIterator output) {
+
+    typedef typename thrust::iterator_difference<InputIterator1>::type difference_type;
+
+    difference_type input_size = thrust::distance(first1, last1);
+    difference_type output_size = thrust::reduce(first1, last1);
+
+    // scan the counts to obtain output offsets for each input element
+    thrust::device_vector<difference_type> output_offsets(input_size, 0);
+    thrust::exclusive_scan(first1, last1, output_offsets.begin());
+    // scatter the nonzero counts into their corresponding output positions
+    thrust::device_vector<difference_type> output_indices(output_size, 0);
+    thrust::scatter_if(thrust::counting_iterator<difference_type>(0), 
+        thrust::counting_iterator<difference_type>(input_size), output_offsets.begin(), 
+        first1, output_indices.begin());
+
+    // compute max-scan over the output indices, filling in the holes
+    thrust::inclusive_scan(output_indices.begin(), output_indices.end(), output_indices.begin(), 
+        thrust::maximum<difference_type>());
+
+    // gather input values according to index array (output = first2[output_indices])
+    OutputIterator output_end = output;
+    thrust::advance(output_end, output_size);
+    thrust::gather(output_indices.begin(), output_indices.end(), first2, output);
+
+    // return output + output_size
+    thrust::advance(output, output_size);
+
+    return output;
 }
 
-*/
-
-/********/
-/* MAIN */
-/********/
-int main(int argc, char** argv)
-{
-
-
-std::cout << argv[1] << "\n";
-std::cout << argv[2] << "\n";
-
-
-	/**************************/
-	/* SETTING UP THE PROBLEM */
-	/**************************/
-
-       // int usuario_id =80;  
-	//const int N_movies_orig		= 3;			// --- Number of vector elements
-	//const int N_users_orig	= 5;			// --- Number of vectors for each matrix
-
-        const int N_users_orig = atoi(argv[1]);
-        const int N_movies_orig = atoi(argv[2]);
-
-        int usuario_id = atoi(argv[3]);
-
-	// --- Matrix allocation and initialization
-
-//	thrust::device_vector<int> d_matrixA(N_users_orig * N_movies_orig);
-//	thrust::device_vector<int> d_matrixB(N_users_orig * N_movies_orig);
-
-        thrust::device_vector<int> d_matrixA(N_users_orig * N_movies_orig);
-        load(d_matrixA, N_users_orig,N_movies_orig);
-
-	printf("\n\nmatrixA\n");
-	for(int i = 0; i < N_users_orig; i++) {
-		std::cout << " [ ";
-		for(int j = 0; j < N_movies_orig; j++)
-			std::cout << d_matrixA[i * N_movies_orig + j]%100 << " ";
-		std::cout << "]\n";
+template <class T>
+void print_matrix (thrust::device_vector<T>& matrix, const int x, const int y, const char* label) {
+    std::cout << "\n\n  " << label << "\n";
+    std::cout << "  ----------------------\n";
+    for(int i = 0; i < x; i++) {
+        std::cout << "   ";
+        for(int j = 0; j < y; j++) {
+            std::cout << matrix[i * y + j] << " ";
 	}
+        std::cout << "\n";
+    }
+    std::cout << "\n";
+}
+
+/*
+ * Function:  main 
+ * --------------------
+ * compute which user has the lowest euclidean distance for Client
+ *
+ *  N_users: Number of users to select from our initial data. Max 943
+ *  N_movies: Number movies to select from our initial data. Max 1682
+ *  Client: An user_id we want to find a closes match
+ *
+ */
+int main(int argc, char** argv) {
+
+   /*
+    * Read the input parameters
+    * --------------------
+    */
+    const int amount_of_users_in_dataset = atoi(argv[1]); //Users in our initial dataset
+    const int amount_of_movies_in_dataset = atoi(argv[2]); //Movies in our initial dataset
+    int client_id = atoi(argv[3]); //user_id of the person we want to find similar users for
+    int reduce = atoi(argv[4]); //reduce 0 - Do not reduce dataset, 1 - Reduce dataset optimization
+    int verbose = atoi(argv[5]); //verbose 0 - Print only results, verbose 1 - print steps
+    const int dataset_size = amount_of_users_in_dataset * amount_of_movies_in_dataset;
+
+   /*
+    * Dataset generation
+    * --------------------
+    * generate our initial dataset as a subset of MovieLense 100K dataset stored in data.cu 
+    */
+    thrust::device_vector<int> user_ratings_dataset(dataset_size);
+    thrust::device_vector<int> client_ratings_dataset(dataset_size);
+
+    load(user_ratings_dataset, amount_of_users_in_dataset, amount_of_movies_in_dataset);
+    load(client_ratings_dataset, amount_of_users_in_dataset, amount_of_movies_in_dataset, client_id);
+
+    // Show user ratings dataset
+    if(verbose) {
+        print_matrix (user_ratings_dataset, amount_of_users_in_dataset, 
+           amount_of_movies_in_dataset, "user_ratings_dataset");
+    }
 
 
-        
-       
+    thrust::device_vector<int> user_ratings_working_dataset(user_ratings_dataset);
+    thrust::device_vector<int> client_ratings_working_dataset(client_ratings_dataset);
+    int N_users = amount_of_users_in_dataset;
+    int N_movies = amount_of_movies_in_dataset;
 
 
-	return 0; 
+   /*
+    * Reduce optimization
+    * --------------------
+    * reduce the size of the dataset to work on, this is an optimization that reduces 
+    * the dataset to only the elements that have a movie rating for the client. This way
+    * skip doing computation in data that we are not going to use.
+    */
+    if(reduce) {
+       thrust::device_vector<int> masked_user_ratings(dataset_size);
+       thrust::device_vector<int> masked_client_ratings(dataset_size);
+       thrust::transform(user_ratings_dataset.begin(), user_ratings_dataset.end(), 
+           client_ratings_dataset.begin(), masked_user_ratings.begin(), mask_if_zero());
+       thrust::transform(client_ratings_dataset.begin(), client_ratings_dataset.end(), 
+           client_ratings_dataset.begin(), masked_client_ratings.begin(), mask_if_zero());
+
+
+       // Show masked ratings dataset
+       if(verbose) {
+           print_matrix(masked_user_ratings, amount_of_users_in_dataset,
+              amount_of_movies_in_dataset, "masked_user_ratings_dataset");
+       }
+
+
+       int reduced_dataset_size = thrust::count_if(masked_user_ratings.begin(), 
+           masked_user_ratings.end(), is_less_than_mask());
+       N_users = amount_of_users_in_dataset;
+       N_movies = reduced_dataset_size / amount_of_users_in_dataset;
+
+       thrust::device_vector<int> user_ratings_working_dataset(reduced_dataset_size);
+       thrust::device_vector<int> client_ratings_working_dataset(reduced_dataset_size);
+
+       thrust::copy_if(masked_user_ratings.begin(), masked_user_ratings.end(), 
+           user_ratings_working_dataset.begin(), is_less_than_mask());
+       thrust::copy_if(client_ratings_dataset.begin(), client_ratings_dataset.end(), 
+           client_ratings_working_dataset.begin(), is_less_than_mask());
+
+       // Show reduced ratings dataset
+       if(verbose) {
+           print_matrix(user_ratings_working_dataset, N_users, N_movies, 
+               "reduced_ratings_dataset");
+       }
+    } 
+
+   /*
+    * Create index matrix for reduction
+    * --------------------
+    * create a vector that will help us to reduce by rows in next step
+    * E.g. In a 3 x 2
+    * (1 1 1
+    *  2 2 2)
+    */
+    thrust::device_vector<int> d_sequence(N_users);
+    thrust::device_vector<int> d_indices(N_users * N_movies);
+    thrust::device_vector<int> d_counts(N_users, N_movies);
+    thrust::sequence(d_sequence.begin(), d_sequence.begin() + N_users);
+    make_matrix_index(d_counts.begin(), d_counts.end(), d_sequence.begin(), d_indices.begin());
+
+
+
+   /*
+    * Compute Euclidean distance
+    * --------------------
+    */
+    thrust::device_vector<float> d_devnull(N_users);
+    thrust::device_vector<float> d_squared_differences(N_users * N_movies);
+    thrust::device_vector<float> d_norms(N_users);
+    thrust::device_vector<int> d_cuenta(N_users * N_movies);
+    thrust::device_vector<float> d_dividendo(N_users);
+    thrust::device_vector<float> d_distancias_euclidianas(N_users);
+
+    thrust::transform(user_ratings_working_dataset.begin(), user_ratings_working_dataset.end(), 
+       client_ratings_working_dataset.begin(), d_squared_differences.begin(), power_difference());
+    // Show user ratings dataset
+    if(verbose) {
+        print_matrix (d_squared_differences, N_users, N_movies, "squared_differences");
+    }
+
+    thrust::reduce_by_key(d_indices.begin(), d_indices.end(), d_squared_differences.begin(), 
+       d_devnull.begin(), d_norms.begin());
+    thrust::transform(user_ratings_working_dataset.begin(), user_ratings_working_dataset.end(), 
+        client_ratings_working_dataset.begin(), d_cuenta.begin(), one_if_not_zeros());
+    thrust::reduce_by_key(d_indices.begin(), d_indices.end(), d_cuenta.begin(), d_devnull.begin(), 
+        d_dividendo.begin());
+    thrust::transform(d_norms.begin(), d_norms.end(), d_dividendo.begin(), 
+        d_distancias_euclidianas.begin(), weight_division());
+
+    // Show Euclidean distance
+    if(verbose) {
+        std::cout << "\n\n  euclidean_distances \n";
+        std::cout << "  ----------------------\n"; 
+        for(int i = 0; i < N_users; i++) {
+            std::cout << "   " << d_norms[i] << "/" << d_dividendo[i] << "=" 
+                << d_distancias_euclidianas[i] << " \n";
+        }
+    }
+
+
+   /*
+    * Find lowest distance in data set
+    * --------------------
+    */
+    thrust::device_vector<int> user_index(N_users);
+    thrust::sequence(user_index.begin(), user_index.end(), 0, 1);
+    thrust::sort_by_key(d_distancias_euclidianas.begin(), d_distancias_euclidianas.end(), 
+        user_index.begin());
+    // Show Euclidean distance
+    if(verbose) {
+        std::cout << "\n\n  sorted euclidean_distances \n";
+        std::cout << "  ----------------------\n";
+        for(int i = 0; i < N_users; i++) {
+            std::cout << "   user: " << user_index[i] << " : " << d_distancias_euclidianas[i]
+                << " \n";
+        }
+    }
+    int answer = 0;
+    if (client_id == user_index[answer]) {
+        answer++;
+    }
+    std::cout << "Lowest Euclidean Distance: " << d_distancias_euclidianas[answer] 
+        << " from user: " << user_index[answer]<< " \n";
+
+    return 0;
 }

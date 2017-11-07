@@ -180,12 +180,23 @@ template <typename InputIterator1, typename InputIterator2, typename OutputItera
     return output;
 }
 
+/*
+ * Function:  print_matrix
+ * --------------------
+ * print a vector as a formated 2D matrix
+ *
+ *  matrix: vector of size x * y 
+ *  x: Number of rows
+ *  y: Numbe of columns
+ *  label: Label to display above the matrix
+ *
+ */
 template <class T>
 void print_matrix (thrust::device_vector<T>& matrix, const int x, const int y, const char* label) {
     std::cout << "\n\n  " << label << "\n";
     std::cout << "  ----------------------\n";
     for(int i = 0; i < x; i++) {
-        std::cout << "   ";
+        std::cout << "   u[" << i << "] ";
         for(int j = 0; j < y; j++) {
             std::cout << matrix[i * y + j] << " ";
 	}
@@ -292,11 +303,11 @@ int main(int argc, char** argv) {
     * (1 1 1
     *  2 2 2)
     */
-    thrust::device_vector<int> d_sequence(N_users);
-    thrust::device_vector<int> d_indices(N_users * N_movies);
-    thrust::device_vector<int> d_counts(N_users, N_movies);
-    thrust::sequence(d_sequence.begin(), d_sequence.begin() + N_users);
-    make_matrix_index(d_counts.begin(), d_counts.end(), d_sequence.begin(), d_indices.begin());
+    thrust::device_vector<int> seq(N_users);
+    thrust::device_vector<int> reduce_by_key_index(N_users * N_movies);
+    thrust::device_vector<int> reps(N_users, N_movies);
+    thrust::sequence(seq.begin(), seq.begin() + N_users);
+    make_matrix_index(reps.begin(), reps.end(), seq.begin(), reduce_by_key_index.begin());
 
 
 
@@ -304,36 +315,36 @@ int main(int argc, char** argv) {
     * Compute Euclidean distance
     * --------------------
     */
-    thrust::device_vector<float> d_devnull(N_users);
-    thrust::device_vector<float> d_squared_differences(N_users * N_movies);
-    thrust::device_vector<float> d_norms(N_users);
-    thrust::device_vector<int> d_cuenta(N_users * N_movies);
-    thrust::device_vector<float> d_dividendo(N_users);
-    thrust::device_vector<float> d_distancias_euclidianas(N_users);
+    thrust::device_vector<float> dev_null(N_users);
+    thrust::device_vector<float> squared_differences(N_users * N_movies);
+    thrust::device_vector<float> squared_differences_sum(N_users);
+    thrust::device_vector<int> common_movies(N_users * N_movies);
+    thrust::device_vector<float> common_movies_count(N_users);
+    thrust::device_vector<float> euclidean_distance(N_users);
 
     thrust::transform(user_ratings_working_dataset.begin(), user_ratings_working_dataset.end(), 
-       client_ratings_working_dataset.begin(), d_squared_differences.begin(), power_difference());
+       client_ratings_working_dataset.begin(), squared_differences.begin(), power_difference());
     // Show user ratings dataset
     if(verbose) {
-        print_matrix (d_squared_differences, N_users, N_movies, "squared_differences");
+        print_matrix (squared_differences, N_users, N_movies, "squared_differences");
     }
 
-    thrust::reduce_by_key(d_indices.begin(), d_indices.end(), d_squared_differences.begin(), 
-       d_devnull.begin(), d_norms.begin());
+    thrust::reduce_by_key(reduce_by_key_index.begin(), reduce_by_key_index.end(), squared_differences.begin(), 
+       dev_null.begin(), squared_differences_sum.begin());
     thrust::transform(user_ratings_working_dataset.begin(), user_ratings_working_dataset.end(), 
-        client_ratings_working_dataset.begin(), d_cuenta.begin(), one_if_not_zeros());
-    thrust::reduce_by_key(d_indices.begin(), d_indices.end(), d_cuenta.begin(), d_devnull.begin(), 
-        d_dividendo.begin());
-    thrust::transform(d_norms.begin(), d_norms.end(), d_dividendo.begin(), 
-        d_distancias_euclidianas.begin(), weight_division());
+        client_ratings_working_dataset.begin(), common_movies.begin(), one_if_not_zeros());
+    thrust::reduce_by_key(reduce_by_key_index.begin(), reduce_by_key_index.end(), common_movies.begin(), 
+        dev_null.begin(), common_movies_count.begin());
+    thrust::transform(squared_differences_sum.begin(), squared_differences_sum.end(), common_movies_count.begin(), 
+        euclidean_distance.begin(), weight_division());
 
     // Show Euclidean distance
     if(verbose) {
         std::cout << "\n\n  euclidean_distances \n";
         std::cout << "  ----------------------\n"; 
         for(int i = 0; i < N_users; i++) {
-            std::cout << "   " << d_norms[i] << "/" << d_dividendo[i] << "=" 
-                << d_distancias_euclidianas[i] << " \n";
+            std::cout << "   u[" << i << "] " << squared_differences_sum[i] << " / " << common_movies_count[i] << "=" 
+                << euclidean_distance[i] << " \n";
         }
     }
 
@@ -344,14 +355,14 @@ int main(int argc, char** argv) {
     */
     thrust::device_vector<int> user_index(N_users);
     thrust::sequence(user_index.begin(), user_index.end(), 0, 1);
-    thrust::sort_by_key(d_distancias_euclidianas.begin(), d_distancias_euclidianas.end(), 
+    thrust::sort_by_key(euclidean_distance.begin(), euclidean_distance.end(), 
         user_index.begin());
     // Show Euclidean distance
     if(verbose) {
         std::cout << "\n\n  sorted euclidean_distances \n";
         std::cout << "  ----------------------\n";
         for(int i = 0; i < N_users; i++) {
-            std::cout << "   user: " << user_index[i] << " : " << d_distancias_euclidianas[i]
+            std::cout << "   u[" << i << "] " << euclidean_distance[i]
                 << " \n";
         }
     }
@@ -359,7 +370,7 @@ int main(int argc, char** argv) {
     if (client_id == user_index[answer]) {
         answer++;
     }
-    std::cout << "Lowest Euclidean Distance: " << d_distancias_euclidianas[answer] 
+    std::cout << "Lowest Euclidean Distance: " << euclidean_distance[answer] 
         << " from user: " << user_index[answer]<< " \n";
 
     return 0;

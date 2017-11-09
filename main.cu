@@ -81,7 +81,7 @@ struct weight_division {
  */
 struct one_if_not_zeros {
     __host__ __device__ int operator()(const int& a, const int& b) const {
-        if ( a % 100 > 0 && b % 100 > 0) {
+        if ( a > 0 && b > 0) {
             return 1;
         } else {
             return 0;
@@ -103,7 +103,7 @@ struct one_if_not_zeros {
  */
 struct mask_if_zero {
     __host__ __device__ int operator()(const int& a, const int& b) const {
-        if ( b%100 > 0) {
+        if ( b > 0) {
             return a;
         } else {
             return MASK;
@@ -239,10 +239,12 @@ int main(int argc, char** argv) {
     load(user_ratings_dataset, amount_of_users_in_dataset, amount_of_movies_in_dataset);
     load(client_ratings_dataset, amount_of_users_in_dataset, amount_of_movies_in_dataset, client_id);
 
-    // Show user ratings dataset
+    // Show original ratings dataset
     if(verbose) {
         print_matrix (user_ratings_dataset, amount_of_users_in_dataset, 
            amount_of_movies_in_dataset, "user_ratings_dataset");
+        print_matrix (client_ratings_dataset, amount_of_users_in_dataset,
+           amount_of_movies_in_dataset, "client_ratings_dataset");
     }
 
 
@@ -272,6 +274,8 @@ int main(int argc, char** argv) {
        if(verbose) {
            print_matrix(masked_user_ratings, amount_of_users_in_dataset,
               amount_of_movies_in_dataset, "masked_user_ratings_dataset");
+           print_matrix(masked_client_ratings, amount_of_users_in_dataset,
+              amount_of_movies_in_dataset, "masked_client_ratings_dataset");
        }
 
 
@@ -280,20 +284,22 @@ int main(int argc, char** argv) {
        N_users = amount_of_users_in_dataset;
        N_movies = reduced_dataset_size / amount_of_users_in_dataset;
 
-       thrust::device_vector<int> user_ratings_working_dataset(reduced_dataset_size);
-       thrust::device_vector<int> client_ratings_working_dataset(reduced_dataset_size);
+       user_ratings_working_dataset.resize(reduced_dataset_size);
+       client_ratings_working_dataset.resize(reduced_dataset_size);
 
        thrust::copy_if(masked_user_ratings.begin(), masked_user_ratings.end(), 
            user_ratings_working_dataset.begin(), is_less_than_mask());
-       thrust::copy_if(client_ratings_dataset.begin(), client_ratings_dataset.end(), 
+       thrust::copy_if(masked_client_ratings.begin(), masked_client_ratings.end(), 
            client_ratings_working_dataset.begin(), is_less_than_mask());
 
        // Show reduced ratings dataset
        if(verbose) {
            print_matrix(user_ratings_working_dataset, N_users, N_movies, 
-               "reduced_ratings_dataset");
+               "reduced_user_ratings_dataset");
+           print_matrix(client_ratings_working_dataset, N_users, N_movies,
+               "reduced_client_ratings_dataset");
        }
-    } 
+    }
 
    /*
     * Create index matrix for reduction
@@ -310,7 +316,6 @@ int main(int argc, char** argv) {
     make_matrix_index(reps.begin(), reps.end(), seq.begin(), reduce_by_key_index.begin());
 
 
-
    /*
     * Compute Euclidean distance
     * --------------------
@@ -324,7 +329,7 @@ int main(int argc, char** argv) {
 
     thrust::transform(user_ratings_working_dataset.begin(), user_ratings_working_dataset.end(), 
        client_ratings_working_dataset.begin(), squared_differences.begin(), power_difference());
-    // Show user ratings dataset
+    // Show squared differences dataset
     if(verbose) {
         print_matrix (squared_differences, N_users, N_movies, "squared_differences");
     }
@@ -333,6 +338,11 @@ int main(int argc, char** argv) {
        dev_null.begin(), squared_differences_sum.begin());
     thrust::transform(user_ratings_working_dataset.begin(), user_ratings_working_dataset.end(), 
         client_ratings_working_dataset.begin(), common_movies.begin(), one_if_not_zeros());
+    if(verbose) {
+        print_matrix (user_ratings_working_dataset, N_users, N_movies, "users");
+        print_matrix (client_ratings_working_dataset, N_users, N_movies, "client");
+        print_matrix (common_movies, N_users, N_movies, "common_movies");
+    }
     thrust::reduce_by_key(reduce_by_key_index.begin(), reduce_by_key_index.end(), common_movies.begin(), 
         dev_null.begin(), common_movies_count.begin());
     thrust::transform(squared_differences_sum.begin(), squared_differences_sum.end(), common_movies_count.begin(), 
@@ -362,7 +372,7 @@ int main(int argc, char** argv) {
         std::cout << "\n\n  sorted euclidean_distances \n";
         std::cout << "  ----------------------\n";
         for(int i = 0; i < N_users; i++) {
-            std::cout << "   u[" << i << "] " << euclidean_distance[i]
+            std::cout << "   u[" << user_index[i] << "] " << euclidean_distance[i]
                 << " \n";
         }
     }

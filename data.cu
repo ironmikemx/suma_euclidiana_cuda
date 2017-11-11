@@ -14,7 +14,7 @@
  */
 void load(thrust::device_vector<int> & output_vector, const int u, const int m) {
 
-    int num_of_movies = 8;
+    int num_of_movies = 3952;
 
     FILE *file;
     int temp;
@@ -54,7 +54,7 @@ void load(thrust::device_vector<int> & output_vector, const int u, const int m) 
  */
 void load(thrust::device_vector<int> & output_vector, const int u, const int m, const int client_id) {
 
-    int num_of_movies = 8;
+    int num_of_movies = 3952;
     thrust::device_vector<int> client_ratings(m);
 
 

@@ -263,13 +263,10 @@ int main(int argc, char** argv) {
     int N_users = amount_of_users_in_dataset;
     int N_movies = thrust::count_if(client_ratings_dataset.begin(),
            client_ratings_dataset.begin() + amount_of_movies_in_dataset, is_not_zero());
-    int reduced_dataset_size = thrust::count_if(masked_user_ratings.begin(),
-           masked_user_ratings.end(), is_less_than_mask());
 
-
-    thrust::remove(thrust::host, user_ratings_dataset.begin(), user_ratings_dataset.end(),
+    thrust::remove_if(user_ratings_dataset.begin(), user_ratings_dataset.end(),
         client_ratings_dataset.begin(), is_zero());
-    thrust::remove(client_ratings_dataset.begin(), client_ratings_dataset.end(), is_zero());
+    thrust::remove_if(client_ratings_dataset.begin(), client_ratings_dataset.end(), is_zero());
 
 
 
@@ -277,31 +274,13 @@ int main(int argc, char** argv) {
      // Show masked ratings dataset
        if(verbose) {
            print_matrix(user_ratings_dataset, N_users, N_movies,
-              "masked_user_ratings_dataset");
+              "reduced_user_ratings_dataset");
            print_matrix(client_ratings_dataset, N_users, N_movies,
-              "masked_client_ratings_dataset");
+              "reduced_client_ratings_dataset");
        }
 
-return 0 ;
 
 
-
-
-       thrust::device_vector<int> user_ratings_working_dataset(reduced_dataset_size);
-       thrust::device_vector<int> client_ratings_working_dataset(reduced_dataset_size);
-
-       thrust::copy_if(masked_user_ratings.begin(), masked_user_ratings.end(), 
-           user_ratings_working_dataset.begin(), is_less_than_mask());
-       thrust::copy_if(masked_client_ratings.begin(), masked_client_ratings.end(), 
-           client_ratings_working_dataset.begin(), is_less_than_mask());
-
-       // Show reduced ratings dataset
-       if(verbose) {
-           print_matrix(user_ratings_working_dataset, N_users, N_movies, 
-               "reduced_user_ratings_dataset");
-           print_matrix(client_ratings_working_dataset, N_users, N_movies,
-               "reduced_client_ratings_dataset");
-       }
     
 
    /*
@@ -330,8 +309,8 @@ return 0 ;
     thrust::device_vector<float> common_movies_count(N_users);
     thrust::device_vector<float> euclidean_distance(N_users);
 
-    thrust::transform(user_ratings_working_dataset.begin(), user_ratings_working_dataset.end(), 
-       client_ratings_working_dataset.begin(), squared_differences.begin(), power_difference());
+    thrust::transform(user_ratings_dataset.begin(), user_ratings_dataset.end(), 
+       client_ratings_dataset.begin(), squared_differences.begin(), power_difference());
     // Show squared differences dataset
     if(verbose) {
         print_matrix (squared_differences, N_users, N_movies, "squared_differences");
@@ -339,11 +318,11 @@ return 0 ;
 
     thrust::reduce_by_key(reduce_by_key_index.begin(), reduce_by_key_index.end(), squared_differences.begin(), 
        dev_null.begin(), squared_differences_sum.begin());
-    thrust::transform(user_ratings_working_dataset.begin(), user_ratings_working_dataset.end(), 
-        client_ratings_working_dataset.begin(), common_movies.begin(), one_if_not_zeros());
+    thrust::transform(user_ratings_dataset.begin(), user_ratings_dataset.end(), 
+        client_ratings_dataset.begin(), common_movies.begin(), one_if_not_zeros());
     if(verbose) {
-        print_matrix (user_ratings_working_dataset, N_users, N_movies, "users");
-        print_matrix (client_ratings_working_dataset, N_users, N_movies, "client");
+        print_matrix (user_ratings_dataset, N_users, N_movies, "users");
+        print_matrix (client_ratings_dataset, N_users, N_movies, "client");
         print_matrix (common_movies, N_users, N_movies, "common_movies");
     }
     thrust::reduce_by_key(reduce_by_key_index.begin(), reduce_by_key_index.end(), common_movies.begin(), 

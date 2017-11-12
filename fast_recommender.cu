@@ -267,7 +267,7 @@ int main(int argc, char** argv) {
 
 
    float distance = 99.99f;
-   int block_size = 5;
+   int block_size = 15;
    int block_id = 0;
    int closest_peer = 0;
 
@@ -286,6 +286,16 @@ int main(int argc, char** argv) {
     make_matrix_index(reps.begin(), reps.end(), seq.begin(), reduce_by_key_index.begin());
 
 
+    thrust::device_vector<float> dev_null(N_users);
+    thrust::device_vector<float> squared_differences(N_users * N_movies);
+    thrust::device_vector<float> squared_differences_sum(N_users);
+    thrust::device_vector<char> common_movies(N_users * N_movies);
+    thrust::device_vector<float> common_movies_count(N_users);
+    thrust::device_vector<float> euclidean_distance(N_users);
+
+    thrust::device_vector<int> user_index(N_users);
+    thrust::sequence(user_index.begin(), user_index.end(), 0, 1);
+
    while(distance > 0.1f) {
        N_users = block_size;
        int offset_start = block_size*block_id*N_movies;
@@ -294,12 +304,6 @@ int main(int argc, char** argv) {
     * Compute Euclidean distance
     * --------------------
     */
-    thrust::device_vector<float> dev_null(N_users);
-    thrust::device_vector<float> squared_differences(N_users * N_movies);
-    thrust::device_vector<float> squared_differences_sum(N_users);
-    thrust::device_vector<char> common_movies(N_users * N_movies);
-    thrust::device_vector<float> common_movies_count(N_users);
-    thrust::device_vector<float> euclidean_distance(N_users);
 
     thrust::transform(user_ratings_dataset.begin() + offset_start,user_ratings_dataset.begin() + offset_end , 
        client_ratings_dataset.begin(), squared_differences.begin(), power_difference());
@@ -335,8 +339,6 @@ int main(int argc, char** argv) {
     * Find lowest distance in data set
     * --------------------
     */
-    thrust::device_vector<int> user_index(N_users);
-    thrust::sequence(user_index.begin(), user_index.end(), 0, 1);
     thrust::sort_by_key(euclidean_distance.begin(), euclidean_distance.end(), 
         user_index.begin());
     // Show Euclidean distance

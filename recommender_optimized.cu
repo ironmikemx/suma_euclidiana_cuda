@@ -10,7 +10,7 @@
 using namespace thrust::placeholders;
 
 #define MASK 99
-
+#define INF 999
 
 /*
  * Operator:  power_difference 
@@ -62,8 +62,12 @@ struct power_difference {
  *  returns: Weighted quotient of two numbers
  */
 struct weight_division {
-    __host__ __device__ float operator()(const int& a, const int& b) const {
-        return (a + (0.00001f - b * 0.000001f)) / b;
+    __host__ __device__ float operator()(const float& a, const float& b) const {
+        if(b == 0) {
+            return INF;
+        } else {
+            return (a + (0.00001f - b * 0.000001f)) / b;
+        }
     }
 };
 
@@ -128,6 +132,28 @@ struct is_less_than_mask : public thrust::unary_function<int, int> {
     }
 };
 
+
+/*
+ * Operator:  not_in_common
+ * --------------------
+ * this operator returns the rating of a movie if the client
+ *    has not seen it yet. Otherwise 0
+ *
+ *  a: user movie rating
+ *  b: client movie rating
+ *
+ *  returns: a when b is 0
+ *           0 otherwise
+ */
+struct not_in_common {
+    __host__ __device__ int operator()(const int& a, const int& b) const {
+        if ( b == 0) {
+            return a;
+        } else {
+            return 0;
+        }
+    }
+};
 
 
 /*
@@ -234,9 +260,11 @@ int main(int argc, char** argv) {
     */
     thrust::device_vector<int> user_ratings_dataset(dataset_size);
     thrust::device_vector<int> client_ratings_dataset(dataset_size);
+    thrust::device_vector<int> movie_ratings_dataset(dataset_size);
 
     load(user_ratings_dataset, amount_of_users_in_dataset, amount_of_movies_in_dataset);
     load(client_ratings_dataset, amount_of_users_in_dataset, amount_of_movies_in_dataset, client_id);
+    thrust::copy(user_ratings_dataset.begin(), user_ratings_dataset.end(), movie_ratings_dataset.begin());
 
     // Show original ratings dataset
     if(verbose) {
@@ -371,5 +399,38 @@ int main(int argc, char** argv) {
     std::cout << "Lowest Euclidean Distance: " << euclidean_distance[answer] 
         << " from user: " << user_index[answer]<< " \n";
 
+   /*
+    * Recommend a movie
+    * --------------------
+    */
+    int offset=user_index[answer] * amount_of_movies_in_dataset;
+    int client_offset = client_id * amount_of_movies_in_dataset;
+    thrust::device_vector<char> possible_movies(amount_of_movies_in_dataset);
+
+    thrust::transform(movie_ratings_dataset.begin() + offset, movie_ratings_dataset.begin()
+        + offset + amount_of_movies_in_dataset, movie_ratings_dataset.begin() + client_offset, possible_movies.begin(), not_in_common());
+
+    // Show movies in common
+    if(verbose) {
+        std::cout << "\n\n  possible_movie_ratings \n";
+        std::cout << "  ----------------------\n";
+        std::cout << "   u["  << user_index[answer] << "] \n";
+        std::cout << "   movie    rating \n";
+        for(int i = 0; i < amount_of_movies_in_dataset ; i++) {
+           int movie = (int)possible_movies[i];
+           std::cout << "     " << i<< "         " << movie << "\n";
+        }
+        std::cout << "\n";
+    }
+
+    thrust::device_vector<int> movie_index(amount_of_movies_in_dataset);
+    thrust::sequence(movie_index.begin(), movie_index.end(), 0, 1);
+    thrust::sort_by_key(possible_movies.begin(), possible_movies.end(),
+        movie_index.begin());
+    std::cout << "Recommended Movies: ";
+    std::cout << movie_index[amount_of_movies_in_dataset-1] << ", ";
+    std::cout << movie_index[amount_of_movies_in_dataset-2] << ", ";
+    std::cout << movie_index[amount_of_movies_in_dataset-3] << ", ";
+    std::cout << " \n";
     return 0;
 }

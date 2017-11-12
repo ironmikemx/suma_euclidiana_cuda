@@ -8,9 +8,9 @@
 #include <stdio.h>
 #include "data.cuh"
 using namespace thrust::placeholders;
-
 #define MASK 99
 #define INF 999
+
 
 /*
  * Operator:  power_difference 
@@ -29,13 +29,11 @@ using namespace thrust::placeholders;
  *           power difference of the two values in any other case
  */
 struct power_difference {
-    __host__ __device__ float operator()(const char& a, const char& b) const {
-        if ( a == 0 || b == 0) {
+    __host__ __device__ float operator()(const int& a, const int& b) const {
+        if ( a % 100 == 0 || b % 100 == 0) {
             return 0;
         } else {
-            int ai = (int)a;
-            int bi = (int)b;
-            return powf(ai - bi, 2);
+            return powf(a % 100 - b % 100, 2);
         }
     }
 };
@@ -74,23 +72,6 @@ struct weight_division {
 };
 
 
-
-
-
-struct is_zero : public thrust::unary_function<char, char> {
-    __host__ __device__ bool operator()(char n) const {
-        return n == 0;
-    }
-};
-
-
-struct is_not_zero : public thrust::unary_function<char, char> {
-    __host__ __device__ bool operator()(char n) const {
-        return n > 0;
-    }
-};
-
-
 /*
  * Operator:  one_if_not_zeros
  * --------------------
@@ -103,7 +84,7 @@ struct is_not_zero : public thrust::unary_function<char, char> {
  *           0 otherwise
  */
 struct one_if_not_zeros {
-    __host__ __device__ char operator()(const char& a, const char& b) const {
+    __host__ __device__ int operator()(const int& a, const int& b) const {
         if ( a > 0 && b > 0) {
             return 1;
         } else {
@@ -111,6 +92,69 @@ struct one_if_not_zeros {
         }
     }
 };
+
+/*
+ * Operator:  mask_if_zero
+ * --------------------
+ * this operator returns the first value received if the second
+ *    number is not zero. Otherwise return 999999999
+ *
+ *  a: first number
+ *  b: second number
+ *
+ *  returns: a when b > 0
+ *           MASK otherwise
+ */
+struct mask_if_zero {
+    __host__ __device__ int operator()(const int& a, const int& b) const {
+        if ( b > 0) {
+            return a;
+        } else {
+            return MASK;
+        }
+    }
+};
+
+
+/*
+ * Operator:  not_in_common
+ * --------------------
+ * this operator returns the rating of a movie if the client
+ *    has not seen it yet. Otherwise 0
+ *
+ *  a: user movie rating
+ *  b: client movie rating
+ *
+ *  returns: a when b is 0
+ *           0 otherwise
+ */
+struct not_in_common {
+    __host__ __device__ int operator()(const int& a, const int& b) const {
+        if ( b == 0) {
+            return a;
+        } else {
+            return -1;
+        }
+    }
+};
+
+
+/*
+ * Operator:  is_less_than_mask
+ * --------------------
+ * Unary operator. Returns if the input value is less than mask
+ *
+ *  n: number
+ *
+ *  returns: TRUE when n < MASK
+ *           FALSE otherwise
+ */
+struct is_less_than_mask : public thrust::unary_function<int, int> {
+    __host__ __device__ bool operator()(int n) const {
+        return n < MASK;
+    }
+};
+
 
 
 /*
@@ -187,56 +231,6 @@ void print_matrix (thrust::device_vector<T>& matrix, const int x, const int y, c
     }
     std::cout << "\n";
 }
-
-
-/*
- * Function:  print_matrix
- * --------------------
- * print a vector as a formated 2D matrix
- *
- *  matrix: vector of size x * y
- *  x: Number of rows
- *  y: Numbe of columns
- *  label: Label to display above the matrix
- *
- */
-void print_char_matrix (thrust::device_vector<char>& matrix, const int x, const int y, const char* label) {
-    std::cout << "\n\n  " << label << "\n";
-    std::cout << "  ----------------------\n";
-    for(int i = 0; i < x; i++) {
-        std::cout << "   u[" << i << "] ";
-        for(int j = 0; j < y; j++) {
-            int n = (int)matrix[i * y + j];
-            std::cout << n << " ";
-        }
-        std::cout << "\n";
-    }
-    std::cout << "\n";
-}
-
-/*
- * Operator:  not_in_common
- * --------------------
- * this operator returns the rating of a movie if the client
- *    has not seen it yet. Otherwise 0
- *
- *  a: user movie rating
- *  b: client movie rating
- *
- *  returns: a when b is 0
- *           0 otherwise
- */
-struct not_in_common {
-    __host__ __device__ char operator()(const char& a, const char& b) const {
-        if ( b == 0) {
-            return a;
-        } else {
-            return 0;
-        }
-    }
-};
-
-
 /*
  * Function:  main 
  * --------------------
@@ -264,49 +258,26 @@ int main(int argc, char** argv) {
     * --------------------
     * generate our initial dataset as a subset of MovieLense 100K dataset stored in data.cu 
     */
-    thrust::device_vector<char> user_ratings_dataset(dataset_size);
-    thrust::device_vector<char> client_ratings_dataset(dataset_size);
-    thrust::device_vector<char> movie_ratings_dataset(dataset_size);
+    thrust::device_vector<int> user_ratings_dataset(dataset_size);
+    thrust::device_vector<int> client_ratings_dataset(dataset_size);
 
-    load_char(user_ratings_dataset, amount_of_users_in_dataset, amount_of_movies_in_dataset);
-    load_char(client_ratings_dataset, amount_of_users_in_dataset, amount_of_movies_in_dataset, client_id);
-    thrust::copy(user_ratings_dataset.begin(), user_ratings_dataset.end(), movie_ratings_dataset.begin());
+    load(user_ratings_dataset, amount_of_users_in_dataset, amount_of_movies_in_dataset);
+    load(client_ratings_dataset, amount_of_users_in_dataset, amount_of_movies_in_dataset, client_id);
 
     // Show original ratings dataset
     if(verbose) {
-        print_char_matrix (user_ratings_dataset, amount_of_users_in_dataset, 
+        print_matrix (user_ratings_dataset, amount_of_users_in_dataset, 
            amount_of_movies_in_dataset, "user_ratings_dataset");
-        print_char_matrix (client_ratings_dataset, amount_of_users_in_dataset,
+        print_matrix (client_ratings_dataset, amount_of_users_in_dataset,
            amount_of_movies_in_dataset, "client_ratings_dataset");
     }
 
 
+    thrust::device_vector<int> user_ratings_working_dataset(user_ratings_dataset);
+    thrust::device_vector<int> client_ratings_working_dataset(client_ratings_dataset);
     int N_users = amount_of_users_in_dataset;
-    int N_movies = thrust::count_if(client_ratings_dataset.begin(),
-           client_ratings_dataset.begin() + amount_of_movies_in_dataset, is_not_zero());
-    int reduced_dataset_size = N_users * N_movies;
+    int N_movies = amount_of_movies_in_dataset;
 
-
-    thrust::remove_if(user_ratings_dataset.begin(), user_ratings_dataset.end(),
-        client_ratings_dataset.begin(), is_zero());
-    thrust::remove_if(client_ratings_dataset.begin(), client_ratings_dataset.end(), is_zero());
-
-    user_ratings_dataset.resize(reduced_dataset_size);
-    client_ratings_dataset.resize(reduced_dataset_size);
-
-
-
-     // Show masked ratings dataset
-       if(verbose) {
-           print_char_matrix(user_ratings_dataset, N_users, N_movies,
-              "reduced_user_ratings_dataset");
-           print_char_matrix(client_ratings_dataset, N_users, N_movies,
-              "reduced_client_ratings_dataset");
-       }
-
-
-
-    
 
    /*
     * Create index matrix for reduction
@@ -330,12 +301,12 @@ int main(int argc, char** argv) {
     thrust::device_vector<float> dev_null(N_users);
     thrust::device_vector<float> squared_differences(N_users * N_movies);
     thrust::device_vector<float> squared_differences_sum(N_users);
-    thrust::device_vector<char> common_movies(N_users * N_movies);
+    thrust::device_vector<int> common_movies(N_users * N_movies);
     thrust::device_vector<float> common_movies_count(N_users);
     thrust::device_vector<float> euclidean_distance(N_users);
 
-    thrust::transform(user_ratings_dataset.begin(), user_ratings_dataset.end(), 
-       client_ratings_dataset.begin(), squared_differences.begin(), power_difference());
+    thrust::transform(user_ratings_working_dataset.begin(), user_ratings_working_dataset.end(), 
+       client_ratings_working_dataset.begin(), squared_differences.begin(), power_difference());
     // Show squared differences dataset
     if(verbose) {
         print_matrix (squared_differences, N_users, N_movies, "squared_differences");
@@ -343,10 +314,12 @@ int main(int argc, char** argv) {
 
     thrust::reduce_by_key(reduce_by_key_index.begin(), reduce_by_key_index.end(), squared_differences.begin(), 
        dev_null.begin(), squared_differences_sum.begin());
-    thrust::transform(user_ratings_dataset.begin(), user_ratings_dataset.end(), 
-        client_ratings_dataset.begin(), common_movies.begin(), one_if_not_zeros());
+    thrust::transform(user_ratings_working_dataset.begin(), user_ratings_working_dataset.end(), 
+        client_ratings_working_dataset.begin(), common_movies.begin(), one_if_not_zeros());
     if(verbose) {
-        print_char_matrix (common_movies, N_users, N_movies, "common_movies");
+        print_matrix (user_ratings_working_dataset, N_users, N_movies, "users");
+        print_matrix (client_ratings_working_dataset, N_users, N_movies, "client");
+        print_matrix (common_movies, N_users, N_movies, "common_movies");
     }
     thrust::reduce_by_key(reduce_by_key_index.begin(), reduce_by_key_index.end(), common_movies.begin(), 
         dev_null.begin(), common_movies_count.begin());
@@ -386,19 +359,17 @@ int main(int argc, char** argv) {
         answer++;
     }
     std::cout << "Lowest Euclidean Distance: " << euclidean_distance[answer] 
-        << " from user: " << user_index[answer]<< " \n";
-
+        << " from user: " << user_index[answer]<< " \n\n";
 
     /*
     * Recommend a movie
     * --------------------
     */
-    int offset=user_index[answer] * amount_of_movies_in_dataset;
-    int client_offset = client_id * amount_of_movies_in_dataset;
-    thrust::device_vector<char> possible_movies(amount_of_movies_in_dataset);
+    int offset=user_index[answer] * N_movies;
+    thrust::device_vector<int> possible_movies(N_movies);
 
-    thrust::transform(movie_ratings_dataset.begin() + offset, movie_ratings_dataset.begin()
-        + offset + amount_of_movies_in_dataset, movie_ratings_dataset.begin() + client_offset, possible_movies.begin(), not_in_common());
+    thrust::transform(user_ratings_working_dataset.begin() + offset, user_ratings_working_dataset.begin() 
+        + offset + N_movies, client_ratings_working_dataset.begin(), possible_movies.begin(), not_in_common());    
 
     // Show movies in common
     if(verbose) {
@@ -406,22 +377,20 @@ int main(int argc, char** argv) {
         std::cout << "  ----------------------\n";
         std::cout << "   u["  << user_index[answer] << "] \n";
         std::cout << "   movie    rating \n";
-        for(int i = 0; i < amount_of_movies_in_dataset ; i++) {
-           int movie = (int)possible_movies[i];
-           std::cout << "     " << i<< "         " << movie << "\n";
+        for(int i = 0; i < N_movies; i++) {
+           std::cout << "     " << i<< "         " << possible_movies[i] << "\n";
         }
         std::cout << "\n";
     }
-
-    thrust::device_vector<int> movie_index(amount_of_movies_in_dataset);
+    thrust::device_vector<int> movie_index(N_movies);
     thrust::sequence(movie_index.begin(), movie_index.end(), 0, 1);
     thrust::sort_by_key(possible_movies.begin(), possible_movies.end(),
         movie_index.begin());
-    std::cout << "Recommended Movies: ";
-    std::cout << movie_index[amount_of_movies_in_dataset-1] << ", ";
-    std::cout << movie_index[amount_of_movies_in_dataset-2] << ", ";
-    std::cout << movie_index[amount_of_movies_in_dataset-3] << ", ";
-    std::cout << " \n";
+    std::cout << "Recommended Movies: " << movie_index[N_movies-1] << ", "
+        << movie_index[N_movies-2] << ", "
+        << movie_index[N_movies-3] << ", "
+        << " \n";
+
 
     return 0;
 }
